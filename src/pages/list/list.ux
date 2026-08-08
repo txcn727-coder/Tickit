@@ -1,0 +1,76 @@
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 顶部：返回 + 时间 + 标题 -->
+    <div static style="position:absolute;left:6px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#262626;border-width:3px;border-color:rgba(255,255,255,0.06);justify-content:center;align-items:center;" onclick="goBack">
+      <image src="../../common/icon-back.png" style="width:16px;height:27px;"></image>
+    </div>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+    <text style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">设置</text>
+
+    <!-- 设置项列表：324x112 卡片 -->
+    <scroll scroll-y="true" style="position:absolute;left:6px;top:90px;width:324px;height:380px;flex-direction:column;">
+      <div for="{{settings}}" style="height:112px;margin-bottom:8px;border-radius:24px;background-color:#262626;flex-direction:column;justify-content:center;padding-left:28px;padding-right:28px;" onclick="onTap($item.action)">
+        <text style="font-size:32px;font-weight:700;color:#FFFFFF;">{{$item.title}}</text>
+        <text style="font-size:22px;color:{{$item.action==='offline' ? (offline ? '#FF9800' : '#999999') : '#999999'}};margin-top:10px;">{{$item.action==='offline' ? (offline ? '当前离线模式' : '当前在线模式') : $item.desc}}</text>
+      </div>
+      <div style="height:10px;"></div>
+    </scroll>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    private: {
+      timeStr: '',
+      offline: false,
+      settings: [
+        { title: '便签', desc: '随手记录想法', action: 'notes' },
+        { title: '同步数据', desc: '与服务器同步内容', action: 'sync' },
+        { title: '云端账号', desc: '绑定网页版账号 Token', action: 'token' },
+        { title: '离线模式', desc: '切换离线后门', action: 'offline' },
+        { title: '关于', desc: '应用信息与版本', action: 'about' }
+      ]
+    },
+
+    onShow () {
+      var that = this
+      that.updateTime()
+      utils.init(storage, prompt, fetch)
+      utils.loadOffline().then(function (off) {
+        that.offline = off
+      })
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    goBack () { router.back() },
+
+    onTap (action) {
+      if (action === 'notes') router.push({ uri: 'pages/notes' })
+      else if (action === 'sync') router.push({ uri: 'pages/sync' })
+      else if (action === 'token') router.push({ uri: 'pages/token' })
+      else if (action === 'offline') this.toggleOffline()
+      else if (action === 'about') router.push({ uri: 'pages/about' })
+    },
+
+    toggleOffline () {
+      var that = this
+      that.offline = !that.offline
+      utils.setOffline(that.offline)
+      utils.toast(that.offline ? '已切换离线模式' : '已切换在线模式')
+    }
+  }
+</script>

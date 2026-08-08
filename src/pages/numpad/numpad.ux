@@ -1,0 +1,182 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 顶部：返回 + 时间 + 标题 + 确认 -->    <div static style="position:absolute;left:6px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#262626;border-width:3px;border-color:rgba(255,255,255,0.06);justify-content:center;align-items:center;" onclick="goBack">
+      <image static src="../../common/icon-back.png" style="width:16px;height:27px;"></image>
+    </div>
+    <div static style="position:absolute;left:258px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#3B82F6;justify-content:center;align-items:center;" onclick="confirm">
+      <text static style="font-size:36px;font-weight:700;color:#FFFFFF;">&#10003;</text>
+    </div>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+    <text static style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">创建清单</text>
+
+    <!-- 内容区（可滚动：名称 + 优先级 2x2 + 截止时间 2x2，卡片与设计稿同尺寸占满全宽） -->
+    <scroll scroll-y="true" style="position:absolute;left:0;top:85px;width:336px;height:395px;flex-direction:column;">
+
+      <!-- 名称输入（点击弹出输入法，设计稿 324x112 全宽大圆角 ~30） -->
+      <div style="width:324px;height:112px;border-radius:30px;background-color:#262626;flex-direction:row;align-items:center;padding-left:26px;padding-right:20px;margin-left:6px;" onclick="showKeyboard">
+        <text static style="font-size:22px;color:#8E8E93;margin-right:15px;">名称</text>
+        <text style="flex:1;font-size:28px;font-weight:700;color:{{title ? '#FFFFFF' : '#8E8E93'}};lines:1;text-overflow:ellipsis;">{{title || '请输入'}}_</text>
+      </div>
+
+      <!-- 优先级（2x2：高/中/低/置顶；if/else 链切换选中态切图，动态 src 在 Vela 不渲染） -->
+      <text static style="font-size:24px;color:#6B6B6B;margin-top:16px;margin-left:30px;">优先级</text>
+      <div style="width:336px;flex-direction:row;flex-wrap:wrap;margin-top:10px;">
+        <image if="{{priority===3}}" src="../../common/pri-high-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(3)"></image>
+        <image else src="../../common/pri-high.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(3)"></image>
+        <image if="{{priority===2}}" src="../../common/pri-mid-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(2)"></image>
+        <image else src="../../common/pri-mid.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(2)"></image>
+        <image if="{{priority===1}}" src="../../common/pri-low-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(1)"></image>
+        <image else src="../../common/pri-low.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(1)"></image>
+        <image if="{{pinned}}" src="../../common/pri-pin-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="togglePin"></image>
+        <image else src="../../common/pri-pin.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="togglePin"></image>
+      </div>
+
+      <!-- 截止时间（2x2：无/今天/明天/3天） -->
+      <text static style="font-size:24px;color:#6B6B6B;margin-top:16px;margin-left:30px;">截止时间</text>
+      <div style="width:336px;flex-direction:row;flex-wrap:wrap;margin-top:10px;">
+        <image if="{{dueSel===0}}" src="../../common/due-none-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(0)"></image>
+        <image else src="../../common/due-none.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(0)"></image>
+        <image if="{{dueSel===1}}" src="../../common/due-today-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(1)"></image>
+        <image else src="../../common/due-today.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(1)"></image>
+        <image if="{{dueSel===2}}" src="../../common/due-tomorrow-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(2)"></image>
+        <image else src="../../common/due-tomorrow.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(2)"></image>
+        <image if="{{dueSel===3}}" src="../../common/due-3day-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(3)"></image>
+        <image else src="../../common/due-3day.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(3)"></image>
+      </div>
+    </scroll>
+
+    <!-- 点击空白收起输入法（键盘显示时生效，DOM 最顶层：点顶部/任意处都收键盘） -->
+    <div if="{{!hide}}" style="position:absolute;left:0;top:0;width:336px;height:220px;" onclick="hideKeyboard"></div>
+
+    <input-method
+      if="{{editing}}"
+      hide="{{hide}}"
+      screentype="rect"
+      maxlength="5"
+      @key-down="onKeyDown"
+      @delete="onDelete"
+      @complete="onComplete"
+    ></input-method>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    private: {
+      timeStr: '',
+      title: '',
+      hide: true,
+      editing: false,
+      priority: 2,
+      pinned: false,
+      dueSel: 0
+    },
+
+    onInit () {
+      utils.init(storage, prompt, fetch)
+    },
+
+    onShow () {
+      this.updateTime()
+    },
+
+    onDestroy () {
+      if (global && global.runGC) {
+        global.runGC()
+      }
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    setPriority (p) {
+      this.priority = p
+    },
+
+    togglePin () {
+      this.pinned = !this.pinned
+    },
+
+    setDue (idx) {
+      this.dueSel = idx
+    },
+
+    // 相对期限 → 绝对毫秒时间戳（0=无截止；无/今天/明天/3天）
+    getDueTs () {
+      if (this.dueSel === 0) { return null }
+      var now = new Date()
+      if (this.dueSel === 1) { return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime() } // 今天 23:59:59
+      if (this.dueSel === 2) { return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59).getTime() } // 明天 23:59:59
+      return Date.now() + 3 * 86400000 // 3天
+    },
+
+    showKeyboard () {
+      this.editing = true
+      this.hide = false
+    },
+
+    hideKeyboard () {
+      this.hide = true
+    },
+
+    onKeyDown (evt) {
+      console.log('keyDown: ' + JSON.stringify(evt))
+    },
+
+    onDelete () {
+      this.title = this.title.slice(0, -1)
+    },
+
+    onComplete (evt) {
+      if (this.title.length < 20) {
+        this.title += evt.detail.content
+      }
+    },
+
+    confirm () {
+      var that = this
+      if (!that.title) {
+        utils.toast('请输入名称')
+        return
+      }
+      var due = that.getDueTs()
+      var newItem = {
+        id: Date.now().toString(),
+        text: that.title,
+        done: false,
+        priority: that.priority,
+        is_pinned: that.pinned ? 1 : 0,
+        createdAt: Date.now()
+      }
+      if (due) { newItem.due = due }
+
+      // 本地保存完成后再返回，避免主页 syncPending 读到旧数据（写入竞态）
+      utils.storageGet('todo_items').then(function (data) {
+        var items = []
+        if (data) {
+          try { items = JSON.parse(data) } catch (e) { items = [] }
+        }
+        items.push(newItem)
+        utils.storageSet('todo_items', JSON.stringify(items)).then(function () {
+          utils.toast('已创建')
+          router.back()
+        })
+      })
+    },
+
+    goBack () { router.back() }
+  }
+</script>

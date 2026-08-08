@@ -1,0 +1,317 @@
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 空状态：整图背景（自带标题/卡片/图标/文字）+ 覆盖返回/时间/添加按钮 -->
+    <div if="{{empty}}" style="width:336px;height:480px;">
+      <image static src="../../common/notes-empty-bg.png" style="position:absolute;left:0;top:0;width:336px;height:480px;"></image>
+      <image static src="../../common/icon-notes-back.png" style="position:absolute;left:6px;top:6px;width:72px;height:72px;" onclick="goBack"></image>
+      <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+      <image static src="../../common/icon-notes-add.png" style="position:absolute;left:258px;top:6px;width:72px;height:72px;" onclick="addNote"></image>
+    </div>
+
+    <!-- 加载中：动态顶部 -->
+    <div elif="{{loading}}" style="width:336px;height:480px;">
+      <image static src="../../common/icon-notes-back.png" style="position:absolute;left:6px;top:6px;width:72px;height:72px;" onclick="goBack"></image>
+      <image static src="../../common/icon-notes-add.png" style="position:absolute;left:258px;top:6px;width:72px;height:72px;" onclick="addNote"></image>
+      <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+      <text static style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">便签</text>
+      <div style="flex:1;justify-content:center;align-items:center;">
+        <text style="font-size:22px;color:#999999;">加载中...</text>
+      </div>
+    </div>
+
+    <!-- 有内容：动态顶部 + 自适应卡片列表 -->
+    <div else style="flex:1;flex-direction:column;">
+      <image static src="../../common/icon-notes-back.png" style="position:absolute;left:6px;top:6px;width:72px;height:72px;" onclick="goBack"></image>
+      <image static src="../../common/icon-notes-add.png" style="position:absolute;left:258px;top:6px;width:72px;height:72px;" onclick="addNote"></image>
+      <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+      <text static style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">便签</text>
+      <scroll scroll-y="true" style="flex:1;flex-direction:column;margin-top:86px;">
+        <div for="{{notes}}" style="width:324px;min-height:112px;margin-left:6px;margin-right:6px;margin-bottom:8px;border-radius:20px;background-color:#262626;flex-direction:column;justify-content:center;padding:16px;" onclick="editNote($item.id)">
+          <text style="font-size:38px;color:#FFFFFF;text-align:left;">{{$item.content}}</text>
+        </div>
+        <div style="height:12px;"></div>
+      </scroll>
+    </div>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    private: {
+      timeStr: '',
+      notes: [],
+      loading: true,
+      empty: false
+    },
+
+    onInit () {
+      utils.init(storage, prompt, fetch)
+    },
+
+    onShow () {
+      var that = this
+      that.updateTime()
+      that.loading = true
+      // 先执行待删除的云端便签（confirm 删除时记录的 cloudId），再拉取合并——
+      // 否则云端旧数据会把刚删的便签重新拉回来
+      that.syncPendingNotes().then(function () {
+        that.loadNotes()
+      })
+    },
+
+    onDestroy () {
+      if (global && global.runGC) {
+        global.runGC()
+      }
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    // 云端待办链（均串行，兼容 Vela 引擎）：上传新建 → 更新已绑定 → 删除 → 完成后再拉取合并
+    syncPendingNotes () {
+      return new Promise(function (resolveAll) {
+        utils.loadOffline().then(function (off) {
+          if (off) { resolveAll(); return }
+          utils.storageGet('todo_token').then(function (token) {
+            if (!token || token === 'guest_token') { resolveAll(); return }
+            utils.setToken(token)
+            var done = function () { resolveAll() }
+
+            // —— 1. 上传本地新建（无 cloudId）的便签，成功回写 cloudId ——
+            // ⚠️ 上传前校验本地存在性：pending 残留 + 本地已删 → 跳过（否则已删便签被重新上传到云端"复活"）
+            utils.storageGet('todo_notes_pending_add').then(function (pd) {
+              var pending = []
+              if (pd) {
+                try { pending = JSON.parse(pd) } catch (e) { pending = [] }
+              }
+              if (!pending.length) { doUpdateChain(); return }
+              var chain = Promise.resolve()
+              var remaining = []
+              for (var i = 0; i < pending.length; i++) {
+                (function (p) {
+                  chain = chain.then(function () {
+                    return utils.storageGet('todo_notes').then(function (data) {
+                      var exists = false
+                      if (data) {
+                        try {
+                          var l = JSON.parse(data)
+                          for (var k = 0; k < l.length; k++) {
+                            if (l[k] && l[k].id === p.localId) { exists = true; break }
+                          }
+                        } catch (e) {}
+                      }
+                      if (!exists) { return null } // 本地已删 → 作废该上传，视为已处理
+                      return utils.cloudAddNote(token, p.content).then(function (res) {
+                        if (res && res.success && res.id) {
+                          // 回写本地 cloudId
+                          return utils.storageGet('todo_notes').then(function (data2) {
+                            var list = []
+                            if (data2) {
+                              try { list = JSON.parse(data2) } catch (e) { list = [] }
+                            }
+                            for (var j = 0; j < list.length; j++) {
+                              if (list[j] && list[j].id === p.localId) { list[j].cloudId = res.id; break }
+                            }
+                            return utils.storageSet('todo_notes', JSON.stringify(list))
+                          })
+                        }
+                        remaining.push(p)
+                        return null
+                      }).catch(function () { remaining.push(p); return null })
+                    })
+                  })
+                })(pending[i])
+              }
+              chain.then(function () {
+                utils.storageSet('todo_notes_pending_add', JSON.stringify(remaining)).then(doUpdateChain)
+              })
+            })
+
+            // —— 2. 更新已绑定云端便签 ——
+            // ⚠️ 更新前校验本地存在性：本地已删的 cloudId 跳过更新（否则更新后又从云端拉回"复活"）
+            function doUpdateChain () {
+              utils.storageGet('todo_notes_pending_update').then(function (pd) {
+                var pending = []
+                if (pd) {
+                  try { pending = JSON.parse(pd) } catch (e) { pending = [] }
+                }
+                if (!pending.length) { doDeleteChain(); return }
+                var uchain = Promise.resolve()
+                var uremaining = []
+                for (var i = 0; i < pending.length; i++) {
+                  (function (p) {
+                    uchain = uchain.then(function () {
+                      return utils.storageGet('todo_notes').then(function (data) {
+                        var exists = false
+                        if (data) {
+                          try {
+                            var l = JSON.parse(data)
+                            for (var k = 0; k < l.length; k++) {
+                              if (l[k] && l[k].cloudId === p.cloudId) { exists = true; break }
+                            }
+                          } catch (e) {}
+                        }
+                        if (!exists) { return null } // 本地已删 → 作废该更新
+                        return utils.cloudUpdateNote(token, p.cloudId, p.content).then(function (res) {
+                          if (res && res.success) { return }
+                          uremaining.push(p)
+                        }).catch(function () { uremaining.push(p) })
+                      })
+                    })
+                  })(pending[i])
+                }
+                uchain.then(function () {
+                  utils.storageSet('todo_notes_pending_update', JSON.stringify(uremaining)).then(doDeleteChain)
+                })
+              })
+            }
+
+            // —— 3. 删除云端便签（confirm 删除时记录的 cloudId） ——
+            function doDeleteChain () {
+              utils.storageGet('todo_pending_delete_notes').then(function (pd) {
+                var pending = []
+                if (pd) {
+                  try { pending = JSON.parse(pd) } catch (e) { pending = [] }
+                }
+                if (!pending.length) { done(); return }
+                var dchain = Promise.resolve()
+                var dremaining = []
+                for (var k = 0; k < pending.length; k++) {
+                  (function (cid) {
+                    dchain = dchain.then(function () {
+                      return utils.cloudDeleteNote(token, cid).then(function (res) {
+                        if (res && res.success) { return }
+                        dremaining.push(cid)
+                      }).catch(function () { dremaining.push(cid) })
+                    })
+                  })(pending[k])
+                }
+                dchain.then(function () {
+                  utils.storageSet('todo_pending_delete_notes', JSON.stringify(dremaining)).then(done)
+                })
+              })
+            }
+          })
+        })
+      })
+    },
+
+    renderList (list) {
+      var that = this
+      var arr = (list || []).slice().sort(function (a, b) {
+        return (b.createdAt || 0) - (a.createdAt || 0)
+      })
+      // 卡片高度由内容撑开（min-height 112，min-width 324），完整显示不省略
+      that.notes = arr.map(function (n) {
+        return { id: n.id, content: n.content || '' }
+      })
+      that.loading = false
+      that.empty = that.notes.length === 0
+    },
+
+    // 便签合并（云端为准）：云端删除则本地删；云端更新覆盖本地；本地无 cloudId 项保留待上传
+    // pendingDel：待删云端 id 列表——云端删失败时仍在云端，拉回也要跳过（防"删不掉"复活）
+    mergeNotes (local, cloud, pendingDel) {
+      var delSet = {}
+      if (pendingDel) {
+        for (var d = 0; d < pendingDel.length; d++) { delSet[String(pendingDel[d])] = true }
+      }
+      var cloudMap = {}
+      for (var i = 0; i < cloud.length; i++) {
+        if (cloud[i] && cloud[i].id !== undefined && cloud[i].id !== null) {
+          cloudMap[String(cloud[i].id)] = cloud[i]
+        }
+      }
+      var result = []
+      var list = local || []
+      for (var j = 0; j < list.length; j++) {
+        var item = list[j]
+        if (!item) { continue }
+        if (item.cloudId) {
+          var c = cloudMap[String(item.cloudId)]
+          if (!c) { continue } // 云端已删除
+          item.content = c.content || item.content
+          if (c.created_ts) { item.createdAt = c.created_ts * 1000 }
+        }
+        result.push(item)
+      }
+      for (var k in cloudMap) {
+        if (!cloudMap.hasOwnProperty(k)) { continue }
+        if (delSet[k]) { continue } // 正在删除的云端项不再拉回
+        var found = false
+        for (var m = 0; m < result.length; m++) {
+          if (result[m] && String(result[m].cloudId) === k) { found = true; break }
+        }
+        if (!found) {
+          var c2 = cloudMap[k]
+          result.push({
+            id: String(c2.id),
+            cloudId: c2.id,
+            content: c2.content || '',
+            createdAt: c2.created_ts ? c2.created_ts * 1000 : Date.now()
+          })
+        }
+      }
+      return result
+    },
+
+    loadNotes () {
+      var that = this
+      utils.storageGet('todo_notes').then(function (data) {
+        var local = []
+        if (data) {
+          try { local = JSON.parse(data) } catch (e) { local = [] }
+        }
+        that.renderList(local)
+        // 在线且有 token 时拉取云端合并
+        utils.loadOffline().then(function (off) {
+          if (off) { return }
+          utils.storageGet('todo_token').then(function (token) {
+            if (!token || token === 'guest_token') { return }
+            utils.setToken(token)
+            utils.cloudGetNotes(token).then(function (cloud) {
+              var isArr = Object.prototype.toString.call(cloud) === '[object Array]'
+              if (!isArr) { return }
+              // 读取待删云端 id 列表，合并时跳过（云端删失败也不拉回）
+              utils.storageGet('todo_pending_delete_notes').then(function (pd) {
+                var pendingDel = []
+                if (pd) {
+                  try { pendingDel = JSON.parse(pd) } catch (e) { pendingDel = [] }
+                }
+                var merged = that.mergeNotes(local, cloud, pendingDel)
+                utils.storageSet('todo_notes', JSON.stringify(merged)).then(function () {
+                  that.renderList(merged)
+                })
+              })
+            }).catch(function (err) {
+              console.log('notes sync fail:', err && err.message)
+            })
+          })
+        })
+      })
+    },
+
+    addNote () {
+      router.push({ uri: 'pages/notecreate' })
+    },
+
+    editNote (id) {
+      router.push({ uri: 'pages/noteedit', params: { noteId: id } })
+    },
+
+    goBack () { router.back() }
+  }
+</script>

@@ -1,0 +1,49 @@
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 顶部：返回（与设置页同款）+ 时间 + 标题 -->
+    <div static style="position:absolute;left:6px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#262626;border-width:3px;border-color:rgba(255,255,255,0.06);justify-content:center;align-items:center;" onclick="goBack">
+      <image static src="../../common/icon-back.png" style="width:16px;height:27px;"></image>
+    </div>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+    <text static style="position:absolute;left:100px;top:42px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">关于</text>
+
+    <!-- 中央大卡（324x194）：TickIt + V2.5.1 + 右下角应用图标 -->
+    <div style="position:absolute;left:6px;top:86px;width:324px;height:194px;border-radius:28px;background-color:#262626;">
+      <text static style="position:absolute;left:22px;top:24px;font-size:34px;font-weight:700;color:#FFFFFF;">TickIt</text>
+      <text static style="position:absolute;left:22px;top:80px;font-size:22px;color:#888888;">V2.5.1</text>
+      <image static src="../../common/logo.png" style="position:absolute;left:246px;top:98px;width:64px;height:64px;"></image>
+    </div>
+
+    <!-- 底部三行（左对齐）：参与开发的人员 / @TXCN STUDIO / @无源流沙 -->
+    <text static style="position:absolute;left:24px;top:296px;width:288px;text-align:left;font-size:26px;color:#8E8E93;">参与开发的人员</text>
+    <text static style="position:absolute;left:24px;top:338px;width:288px;text-align:left;font-size:28px;font-weight:700;color:#FFFFFF;">@TXCN STUDIO</text>
+    <text static style="position:absolute;left:24px;top:378px;width:288px;text-align:left;font-size:28px;font-weight:700;color:#FFFFFF;">@无源流沙</text>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+
+  export default {
+    private: {
+      timeStr: ''
+    },
+
+    onShow () {
+      this.updateTime()
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    goBack () {
+      router.back()
+    }
+  }
+</script>

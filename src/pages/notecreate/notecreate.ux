@@ -1,0 +1,137 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 创建便签：黑框输入 + ✓ 保存 + 键盘 -->
+    <div static style="position:absolute;left:6px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#262626;border-width:3px;border-color:rgba(255,255,255,0.06);justify-content:center;align-items:center;" onclick="goBack">
+      <image static src="../../common/icon-back.png" style="width:16px;height:27px;"></image>
+    </div>
+    <div static style="position:absolute;left:258px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#3B82F6;justify-content:center;align-items:center;" onclick="save">
+      <text static style="font-size:36px;font-weight:700;color:#FFFFFF;">&#10003;</text>
+    </div>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+    <text static style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">创建便签</text>
+
+    <!-- 黑框：高度随文字自动衍生（内容撑开，min-height 112），不限行数不省略 -->
+    <div style="position:absolute;left:6px;top:90px;width:324px;min-height:112px;border-radius:36px;background-color:#262626;flex-direction:column;padding:20px;" onclick="showKeyboard">
+      <text static style="font-size:26px;color:#8E8E93;">内容</text>
+      <text style="font-size:32px;font-weight:400;color:{{content ? '#FFFFFF' : '#8E8E93'}};margin-top:12px;">{{content || '请输入内容'}}{{cursorStr}}</text>
+    </div>
+
+    <!-- 点击空白收起输入法 -->
+    <div if="{{!hide}}" style="position:absolute;left:0;top:0;width:336px;height:220px;" onclick="hideKeyboard"></div>
+
+    <input-method
+      if="{{editing}}"
+      hide="{{hide}}"
+      screentype="rect"
+      maxlength="10"
+      @key-down="onKeyDown"
+      @delete="onDelete"
+      @complete="onComplete"
+    ></input-method>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    private: {
+      timeStr: '',
+      content: '',
+      hide: true,
+      editing: false,
+      cursorStr: ''
+    },
+    onInit () {
+      utils.init(storage, prompt, fetch)
+    },
+
+    onShow () {
+      this.updateTime()
+    },
+
+    onDestroy () {
+      if (global && global.runGC) {
+        global.runGC()
+      }
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    showKeyboard () {
+      this.editing = true
+      this.hide = false
+      this.cursorStr = '_'
+    },
+
+    hideKeyboard () {
+      this.hide = true
+      this.cursorStr = ''
+    },
+
+    onKeyDown (evt) {
+      console.log('keyDown: ' + JSON.stringify(evt))
+    },
+
+    onDelete () {
+      this.content = this.content.slice(0, -1)
+    },
+
+    onComplete (evt) {
+      if (this.content.length < 200) {
+        this.content += evt.detail.content
+      }
+    },
+
+    saveLocal (list) {
+      return utils.storageSet('todo_notes', JSON.stringify(list)).then(function () { return list })
+    },
+
+    save () {
+      var that = this
+      var text = that.content.trim()
+      if (!text) {
+        utils.toast('请输入内容')
+        return
+      }
+      that.content = text
+      utils.storageGet('todo_notes').then(function (data) {
+        var list = []
+        if (data) {
+          try { list = JSON.parse(data) } catch (e) { list = [] }
+        }
+        var item = { id: Date.now().toString(), content: text, createdAt: Date.now() }
+        list.push(item)
+        // 本地立即保存完成即返回（不阻塞蓝牙网络）；云端上传由 notes 页 onShow pending 统一处理
+        that.saveLocal(list).then(function () {
+          // 记入待上传（云端 add 成功后回写 cloudId）
+          utils.storageGet('todo_notes_pending_add').then(function (pd) {
+            var pending = []
+            if (pd) {
+              try { pending = JSON.parse(pd) } catch (e) { pending = [] }
+            }
+            pending.push({ localId: item.id, content: text })
+            utils.storageSet('todo_notes_pending_add', JSON.stringify(pending)).then(function () {
+              utils.toast('已保存')
+              router.back()
+            })
+          })
+        })
+      })
+    },
+
+    goBack () { router.back() }
+  }
+</script>

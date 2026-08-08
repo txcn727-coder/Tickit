@@ -1,0 +1,54 @@
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 退出登录页背景（设计稿：标题 + 盾牌人形卡 + 确定退出吗/退出后无法使用在线模式/请谨慎操作） -->
+    <image static src="../../common/logout-bg.png" style="position:absolute;left:0;top:0;width:336px;height:480px;"></image>
+
+    <!-- 顶部：返回 + 时间 + 红色退出按钮（标题背景自带） -->
+    <image static src="../../common/btn-back-round.png" style="position:absolute;left:6px;top:6px;width:72px;height:72px;" onclick="goBack"></image>
+    <image static src="../../common/btn-exit-red.png" style="position:absolute;left:258px;top:6px;width:72px;height:72px;" onclick="doLogout"></image>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import utils from '../../common/utils'
+
+  export default {
+    private: {
+      timeStr: ''
+    },
+
+    onInit () {
+      utils.init(storage, prompt)
+    },
+
+    onShow () {
+      this.updateTime()
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    doLogout () {
+      var that = this
+      // 等 token 清除写入完成再返回，避免主页 autoSync 读到旧 token 继续同步（异步竞态）
+      utils.storageSet('todo_token', 'guest_token').then(function () {
+        utils.setToken('')
+        utils.toast('已退出云端账号')
+        router.back()
+        router.back()
+      })
+    },
+
+    goBack () { router.back() }
+  }
+</script>

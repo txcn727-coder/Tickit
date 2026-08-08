@@ -1,0 +1,175 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 成功态背景（背景图自带：云朵+对勾卡 + 登录成功 + 标题云端账号） -->
+    <image if="{{bound}}" static src="../../common/token-success-bg.png" style="position:absolute;left:0;top:0;width:336px;height:480px;"></image>
+    <!-- 失败态背景（背景图自带：云朵+叉卡 + 登录失败） -->
+    <image if="{{loginFail}}" static src="../../common/token-fail-bg.png" style="position:absolute;left:0;top:0;width:336px;height:480px;"></image>
+
+    <!-- 点击空白收起输入法 -->
+    <div if="{{!hide}}" style="position:absolute;left:0;top:0;width:336px;height:220px;" onclick="hideKeyboard"></div>
+
+    <!-- 顶部：返回 + 时间 + 标题 + 绑定/退出 -->
+    <image static src="../../common/btn-back-round.png" style="position:absolute;left:6px;top:6px;width:72px;height:72px;" onclick="goBack"></image>
+    <div if="{{!bound && !loginFail}}" style="position:absolute;left:258px;top:6px;width:72px;height:72px;border-radius:36px;background-color:{{binding ? '#4A6FA5' : '#3B82F6'}};justify-content:center;align-items:center;" onclick="doBind">
+      <text style="font-size:36px;font-weight:700;color:#FFFFFF;">{{binding ? '…' : '✓'}}</text>
+    </div>
+    <image if="{{bound}}" static src="../../common/btn-logout-red.png" style="position:absolute;left:258px;top:6px;width:72px;height:72px;" onclick="goLogout"></image>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+    <!-- 标题（成功/失败背景自带标题，仅未绑定态显示） -->
+    <text if="{{!bound && !loginFail}}" style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">云端账号</text>
+
+    <!-- 成功态：底部完成按钮 -->
+    <div if="{{bound}}" style="position:absolute;left:18px;top:373px;width:300px;height:80px;border-radius:30px;background-color:#262626;justify-content:center;align-items:center;" onclick="goBack">
+      <text style="font-size:26px;font-weight:700;color:#FFFFFF;">完成</text>
+    </div>
+
+    <!-- 失败态：请检查网络 + 重试按钮 -->
+    <text if="{{loginFail}}" style="position:absolute;left:0;top:330px;width:336px;text-align:center;font-size:20px;color:#8E8E93;">请检查网络</text>
+    <image if="{{loginFail}}" static src="../../common/btn-retry.png" style="position:absolute;left:18px;top:373px;width:300px;height:80px;" onclick="retry"></image>
+
+    <!-- 未绑定：绑定码输入框 -->
+    <div if="{{!bound && !loginFail}}" style="position:absolute;left:6px;top:96px;width:324px;height:104px;border-radius:24px;background-color:#262626;flex-direction:row;align-items:center;padding-left:24px;padding-right:24px;" onclick="showKeyboard">
+      <text style="font-size:24px;color:#999999;margin-right:14px;">绑定码</text>
+      <text style="flex:1;font-size:34px;font-weight:700;color:{{code ? '#FFFFFF' : '#666666'}};letter-spacing:4px;lines:1;text-overflow:ellipsis;">{{code || '请输入'}}_</text>
+    </div>
+
+    <!-- 说明（未绑定） -->
+    <div if="{{!bound && !loginFail}}" style="position:absolute;left:6px;top:216px;width:324px;flex-direction:column;padding-left:10px;padding-right:10px;">
+      <text style="font-size:20px;color:#999999;line-height:30px;">绑定步骤：</text>
+      <text style="font-size:20px;color:#999999;line-height:30px;margin-top:8px;">1. 网页版 txcn.top/checklist 登录后，点底部「手表绑定」按钮</text>
+      <text style="font-size:20px;color:#999999;line-height:30px;margin-top:8px;">2. 页面会显示 8 位绑定码（10 分钟内有效）</text>
+      <text style="font-size:20px;color:#999999;line-height:30px;margin-top:8px;">3. 把绑定码填到上面，点右上角 ✓</text>
+    </div>
+
+    <input-method
+      hide="{{hide}}"
+      screentype="rect"
+      maxlength="8"
+      @key-down="onKeyDown"
+      @delete="onDelete"
+      @complete="onComplete"
+    ></input-method>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    private: {
+      timeStr: '',
+      code: '',
+      hide: true,
+      binding: false,
+      bound: false,
+      loginFail: false
+    },
+
+    onInit () {
+      utils.init(storage, prompt, fetch)
+    },
+
+    onShow () {
+      var that = this
+      that.updateTime()
+      utils.storageGet('todo_token').then(function (t) {
+        that.bound = !!(t && t !== 'guest_token')
+        that.loginFail = false
+      })
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    showKeyboard () { this.hide = false },
+    hideKeyboard () { this.hide = true },
+
+    onKeyDown (evt) {
+      console.log('keyDown: ' + JSON.stringify(evt))
+    },
+
+    onDelete () {
+      this.code = this.code.slice(0, -1)
+    },
+
+    onComplete (evt) {
+      if (this.code.length < 8) {
+        this.code += evt.detail.content
+        // 输满 8 位自动收起输入法
+        if (this.code.length >= 8) {
+          this.hide = true
+        }
+      }
+    },
+
+    doBind () {
+      var that = this
+      if (!that.code) {
+        utils.toast('请输入绑定码')
+        return
+      }
+      if (that.binding) { return }
+      that.binding = true
+      // 手环走蓝牙网络较慢，点击立即给反馈，避免看起来卡死
+      utils.toast('正在绑定，请稍候...')
+      utils.loadOffline().then(function (off) {
+        if (off) {
+          that.binding = false
+          utils.toast('请先关闭离线模式')
+          return
+        }
+        // 90 秒超时保护（蓝牙网络可能极慢）
+        var timer = setTimeout(function () {
+          that.binding = false
+          that.loginFail = true
+          utils.toast('绑定超时，请检查网络后重试')
+        }, 90000)
+        utils.getDeviceId().then(function (deviceId) {
+          return utils.cloudDeviceBind(that.code, deviceId)
+        }).then(function (res) {
+          clearTimeout(timer)
+          that.binding = false
+          if (res && res.success && res.token) {
+            utils.storageSet('todo_token', res.token)
+            utils.setToken(res.token)
+            that.bound = true
+            that.loginFail = false
+            utils.toast('绑定成功')
+          } else {
+            that.loginFail = true
+            utils.toast((res && res.message) || '绑定失败')
+          }
+        }).catch(function () {
+          clearTimeout(timer)
+          that.binding = false
+          that.loginFail = true
+          utils.toast('绑定失败，请检查网络')
+        })
+      })
+    },
+
+    // 失败后重试：回到绑定码输入态
+    retry () {
+      this.loginFail = false
+      this.binding = false
+      this.hide = true
+    },
+
+    goLogout () {
+      router.push({ uri: 'pages/logout' })
+    },
+
+    goBack () { router.back() }
+  }
+</script>

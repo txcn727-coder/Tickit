@@ -1,0 +1,285 @@
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 顶部区域：左右圆形按钮（原图标 72x72 完整按钮图）+ 时间 + 标题 -->
+    <div style="height:86px;">
+      <!-- 左按钮：返回（原图标：三条竖线 72x72 完整按钮） -->
+      <image static src="../../common/icon-back-home.png" style="position:absolute;left:6px;top:6px;width:72px;height:72px;" onclick="showMenu"></image>
+      <!-- 右按钮：添加（原图标：+ 号） -->
+      <image static src="../../common/icon-add.png" style="position:absolute;left:258px;top:6px;width:72px;height:72px;" onclick="addItem"></image>
+      <!-- 时间（小字） -->
+      <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+      <!-- 标题 -->
+      <text static style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">清单</text>
+    </div>
+
+    <!-- 清单列表区 -->
+    <div style="flex:1;flex-direction:column;">
+      <div if="{{!loaded}}" style="flex:1;justify-content:center;align-items:center;">
+        <text style="font-size:22px;color:#999999;">加载中...</text>
+      </div>
+      <!-- 空状态（用户背景图：深灰卡片 + 卡片内信封 + 卡片下文字，流式布局避免 absolute 偏移） -->
+      <div if="{{loaded && items.length===0}}" style="flex:1;flex-direction:column;align-items:center;">
+        <div style="width:128px;height:124px;border-radius:42px;background-color:#262626;justify-content:center;align-items:center;margin-top:60px;">
+          <image src="../../common/empty-ico.png" style="width:68px;height:56px;"></image>
+        </div>
+        <text style="font-size:28px;color:#FFFFFF;margin-top:36px;">没有内容</text>
+      </div>
+      <scroll if="{{loaded && items.length>0}}" scroll-y="true" style="flex:1;flex-direction:column;">
+        <div for="{{items}}" style="width:324px;height:112px;margin-left:6px;margin-right:6px;margin-bottom:8px;" onclick="viewItem($item.id)">
+          <!-- 卡片背景切图（一比一复刻：6 张按优先级+置顶，JS 预处理 bgIdx；动态 src 不渲染用 if/elif/else 链） -->
+          <image if="{{$item.bgIdx===0}}" src="../../common/card-hi-pin.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+          <image elif="{{$item.bgIdx===1}}" src="../../common/card-hi.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+          <image elif="{{$item.bgIdx===2}}" src="../../common/card-mid-pin.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+          <image elif="{{$item.bgIdx===3}}" src="../../common/card-mid.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+          <image elif="{{$item.bgIdx===4}}" src="../../common/card-lo-pin.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+          <image else src="../../common/card-lo.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+          <!-- 完成对勾（灰环内居中：圆环中心 60.5,55.5；对勾图形在图标内中心 22,22.5 → left=60.5-22=38, top=55.5-22.5=33） -->
+          <image if="{{$item.done}}" src="../../common/icon-check.png" style="position:absolute;left:38px;top:33px;width:45px;height:45px;"></image>
+          <!-- 标题：if/elif/else 链（已完成静态+划线；未完成按长度静态/跑马灯） -->
+          <text if="{{$item.done}}" style="position:absolute;left:118px;top:20px;width:190px;font-size:30px;font-weight:700;color:#666666;lines:1;text-overflow:ellipsis;">{{$item.title}}</text>
+          <text elif="{{$item.title.length <= 5}}" style="position:absolute;left:118px;top:20px;width:190px;font-size:30px;font-weight:700;color:#FFFFFF;lines:1;text-overflow:ellipsis;">{{$item.title}}</text>
+          <marquee else style="position:absolute;left:118px;top:20px;width:190px;height:30px;font-size:30px;font-weight:700;color:#FFFFFF;" scrollamount="25">{{$item.title}}</marquee>
+          <!-- 已完成划线（左右圆角，暗色） -->
+          <div if="{{$item.done}}" style="position:absolute;left:118px;top:38px;width:190px;height:4px;border-radius:2px;background-color:#666666;"></div>
+          <!-- 时间行（有截止显示截止/已逾期红色，无截止显示创建时间） -->
+          <text style="position:absolute;left:118px;top:66px;width:190px;font-size:18px;color:{{$item.timeColor}};lines:1;text-overflow:ellipsis;">{{$item.dueStr}}</text>
+          <div if="{{$item.done}}" style="position:absolute;left:118px;top:76px;width:190px;height:3px;border-radius:2px;background-color:#444444;"></div>
+        </div>
+        <div style="height:12px;"></div>
+      </scroll>
+    </div>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    private: {
+      timeStr: '',
+      items: [],
+      loaded: false
+    },
+
+    onInit () {
+      utils.init(storage, prompt, fetch)
+    },
+
+    onShow () {
+      this.updateTime()
+      this.loadItems()
+      var that = this
+      // 先执行待办（上传新建 / 删除云端项），完成后再拉取云端——
+      // 否则 autoSync 拉到的云端旧数据会把刚删的项重新写回本地（删除不灵敏的根因）
+      that.syncPending().then(function () {
+        that.autoSync()
+      })
+    },
+
+    onDestroy () {
+      // 页面销毁时及时垃圾回收
+      if (global && global.runGC) {
+        global.runGC()
+      }
+    },
+
+    // 在线且有 token 时，进主页自动拉取云端合并本地（每次 onShow 都拉，保证网页端的外部改动及时同步）
+    autoSync () {
+      var that = this
+      utils.loadOffline().then(function (off) {
+        if (off) { return }
+        utils.storageGet('todo_token').then(function (token) {
+          if (!token || token === 'guest_token') { return }
+          utils.setToken(token)
+          utils.syncPull().then(function (cloudTodos) {
+            var isArr = Object.prototype.toString.call(cloudTodos) === '[object Array]'
+            console.log('autoSync cloud:', isArr ? '数组长度=' + cloudTodos.length : JSON.stringify(cloudTodos))
+            if (!isArr) { return }
+            utils.storageGet('todo_items').then(function (data) {
+              var local = []
+              if (data) {
+                try { local = JSON.parse(data) } catch (e) { local = [] }
+              }
+              var merged = utils.mergeCloudItems(local, cloudTodos)
+              utils.storageSet('todo_items', JSON.stringify(merged)).then(function () {
+                that.loadItems()
+              })
+            })
+          }).catch(function (err) {
+            console.log('autoSync fail:', err && err.message)
+          })
+        })
+      })
+    },
+
+    // 自动上传未绑定 cloudId 的本地新建项 + 执行待删除的云端项
+    // 返回 Promise：全部待办处理完才 resolve（供 onShow 串行调用 autoSync）
+    syncPending () {
+      var that = this
+      return new Promise(function (resolveAll) {
+        utils.loadOffline().then(function (off) {
+          if (off) { resolveAll(); return }
+          utils.storageGet('todo_token').then(function (token) {
+            if (!token || token === 'guest_token') { resolveAll(); return }
+            utils.setToken(token)
+            var done = function () { resolveAll() }
+            // —— 1. 上传未绑定项 ——
+            utils.storageGet('todo_items').then(function (data) {
+              var items = []
+              if (data) {
+                try { items = JSON.parse(data) } catch (e) { items = [] }
+              }
+              var pending = []
+              for (var i = 0; i < items.length; i++) {
+                if (items[i] && !items[i].cloudId) { pending.push(items[i]) }
+              }
+              var chain = Promise.resolve()
+              var count = 0
+              for (var j = 0; j < pending.length; j++) {
+                (function (item) {
+                  chain = chain.then(function () {
+                    return utils.cloudAddTodo(token, item.text || item.title || '', item.priority || 2, item.due || 0, item.is_pinned || 0).then(function (res) {
+                      if (res && res.success && res.id) { item.cloudId = res.id; count++ }
+                      return null
+                    }).catch(function () { return null })
+                  })
+                })(pending[j])
+              }
+              chain.then(function () {
+                var afterUp = function () { doDeleteChain() }
+                if (count > 0) {
+                  utils.storageSet('todo_items', JSON.stringify(items)).then(afterUp)
+                } else {
+                  afterUp()
+                }
+              })
+            })
+            // —— 2. 执行待删除的云端项（confirm 删除时记录的 cloudId；失败保留下次重试） ——
+            function doDeleteChain () {
+              utils.storageGet('todo_pending_delete').then(function (pd) {
+                var pendingDel = []
+                if (pd) {
+                  try { pendingDel = JSON.parse(pd) } catch (e) { pendingDel = [] }
+                }
+                if (!pendingDel.length) { done(); return }
+                var dchain = Promise.resolve()
+                var remaining = []
+                for (var k = 0; k < pendingDel.length; k++) {
+                  (function (cid) {
+                    dchain = dchain.then(function () {
+                      return utils.cloudDeleteTodo(token, cid).then(function (res) {
+                        if (res && res.success) { return }
+                        remaining.push(cid)
+                      }).catch(function () { remaining.push(cid) })
+                    })
+                  })(pendingDel[k])
+                }
+                dchain.then(function () {
+                  utils.storageSet('todo_pending_delete', JSON.stringify(remaining)).then(done)
+                })
+              })
+            }
+          })
+        })
+      })
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    getPriorityColor (p) {
+      if (p === 3) return '#FE1E1E'
+      if (p === 1) return '#8A1EB6'
+      return '#3A74DA'
+    },
+
+    fmtItemTime (ts) {
+      if (ts === undefined || ts === null || ts === '') return ''
+      var d
+      if (typeof ts === 'number') {
+        // 绝对时间戳：秒或毫秒 → 本地时间（与服务器/显示时区无关）
+        var ms = ts > 100000000000 ? ts : ts * 1000
+        d = new Date(ms)
+      } else if (typeof ts === 'string' && ts.indexOf('-') >= 0) {
+        // 兜底：云端字符串 'YYYY-MM-DD HH:MM:SS' 按 UTC 解析转本地
+        var p = String(ts).split(/[- :]/).map(function (s) { return parseInt(s, 10) })
+        d = new Date(Date.UTC(p[0], p[1] - 1, p[2], p[3] || 0, p[4] || 0, p[5] || 0))
+      } else {
+        d = new Date(ts)
+      }
+      if (isNaN(d.getTime())) return ''
+      return (d.getMonth() + 1) + '.' + d.getDate() + ' ' +
+        (d.getHours() < 10 ? '0' + d.getHours() : d.getHours()) + ':' +
+        (d.getMinutes() < 10 ? '0' + d.getMinutes() : d.getMinutes())
+    },
+
+    loadItems () {
+      var that = this
+      utils.storageGet('todo_items').then(function (data) {
+        that.loaded = true
+        if (data) {
+          try {
+            var rawItems = JSON.parse(data)
+            var now = Date.now()
+            that.items = rawItems.map(function (item) {
+              var p = parseInt(item.priority, 10)
+              if (isNaN(p)) { p = 2 }
+              var done = item.done || false
+              var due = parseInt(item.due, 10) || 0
+              var overdue = !done && due > 0 && due < now
+              var pinned = item.is_pinned === 1
+              // 背景切图索引：0=高置顶 1=高 2=中置顶 3=中 4=低置顶 5=低
+              var bgIdx = p === 3 ? (pinned ? 0 : 1) : (p === 1 ? (pinned ? 4 : 5) : (pinned ? 2 : 3))
+              return {
+                id: item.id,
+                title: item.text || item.title || '未命名',
+                done: done,
+                priority: p,
+                pinned: pinned,
+                bgIdx: bgIdx,
+                priorityColor: that.getPriorityColor(p),
+                dueStr: due > 0
+                  ? (overdue ? '已逾期' : '截止 ' + that.fmtItemTime(due))
+                  : that.fmtItemTime(item.createdAt),
+                timeColor: done ? '#555555' : (overdue ? '#FF3B30' : '#C9C9C9')
+              }
+            }).sort(function (a, b) {
+              if (a.done !== b.done) return a.done ? 1 : -1
+              if (b.pinned !== a.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+              return b.priority - a.priority
+            })
+          } catch (e) {
+            that.items = []
+          }
+        } else {
+          that.items = []
+        }
+      }).catch(function () {
+        that.loaded = true
+        that.items = []
+      })
+    },
+
+    viewItem (id) {
+      router.push({ uri: 'pages/viewer', params: { itemId: id } })
+    },
+
+    addItem () {
+      router.push({ uri: 'pages/numpad' })
+    },
+
+    showMenu () {
+      router.push({ uri: 'pages/list' })
+    }
+  }
+</script>

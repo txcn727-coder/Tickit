@@ -1,0 +1,75 @@
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 顶部：返回 + 时间 + 标题 -->
+    <div static style="position:absolute;left:6px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#262626;border-width:3px;border-color:rgba(255,255,255,0.06);justify-content:center;align-items:center;" onclick="goBack">
+      <image src="../../common/icon-back.png" style="width:16px;height:27px;"></image>
+    </div>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+    <text style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">分享内容</text>
+
+    <!-- 二维码区 -->
+    <div style="position:absolute;left:0;top:120px;width:336px;flex-direction:column;align-items:center;">
+      <div style="width:240px;height:240px;border-radius:24px;background-color:#FFFFFF;justify-content:center;align-items:center;padding:20px;">
+        <qrcode value="{{qrContent}}" style="width:200px;height:200px;background-color:#FFFFFF;"></qrcode>
+      </div>
+      <text style="font-size:16px;color:#999999;margin-top:24px;padding-left:40px;padding-right:40px;text-align:center;lines:2;text-overflow:ellipsis;">{{qrContent}}</text>
+    </div>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import utils from '../../common/utils'
+
+  export default {
+    public: {
+      itemId: '',
+      content: ''
+    },
+
+    private: { timeStr: '', qrContent: '未命名' },
+
+    onShow () {
+      var that = this
+      that.updateTime()
+      utils.init(storage, prompt)
+      if (that.content) {
+        // 便签分享：内容直传
+        that.qrContent = that.content
+      } else {
+        that.loadContent()
+      }
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    loadContent () {
+      var that = this
+      utils.storageGet('todo_items').then(function (data) {
+        if (!data) { return }
+        try {
+          var items = JSON.parse(data)
+          for (var i = 0; i < items.length; i++) {
+            if (items[i].id === that.itemId) {
+              that.qrContent = items[i].text || items[i].title || '未命名'
+              break
+            }
+          }
+        } catch (e) {
+          console.log('loadContent error: ' + e)
+        }
+      })
+    },
+
+    goBack () { router.back() }
+  }
+</script>

@@ -1,0 +1,345 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 编辑模式：点击空白收起输入法（最先渲染，位于按钮之下层级） -->
+    <div if="{{editing && !keyboardHide}}" style="position:absolute;left:0;top:0;width:336px;height:220px;" onclick="hideKeyboard"></div>
+
+    <!-- 顶部：返回（原按钮图）+ 时间 + 标题 + 蓝色对勾保存（详情/编辑都显示） -->
+    <image static src="../../common/btn-back-round.png" style="position:absolute;left:6px;top:6px;width:72px;height:72px;" onclick="goBack"></image>
+    <div style="position:absolute;left:258px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#3B82F6;justify-content:center;align-items:center;" onclick="saveAndBack">
+      <text style="font-size:36px;font-weight:700;color:#FFFFFF;">&#10003;</text>
+    </div>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+    <text style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">{{editing ? '修改内容' : '清单详情'}}</text>
+
+    <!-- 详情模式：可滑动，切图一比一复刻 -->
+    <div if="{{!editing}}" style="position:absolute;left:0;top:85px;width:336px;height:395px;">
+      <scroll scroll-y="true" style="width:336px;height:395px;flex-direction:column;">
+
+        <!-- 清单内容卡（背景切图 + 白字标题叠加） -->
+        <div style="width:324px;height:112px;margin-left:6px;margin-top:2px;">
+          <image static src="../../common/view-content-bg.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+          <text style="position:absolute;left:28px;top:58px;width:260px;font-size:30px;font-weight:700;color:#FFFFFF;lines:1;text-overflow:ellipsis;">{{title}}</text>
+        </div>
+
+        <!-- 状态卡（完成/未完成切图切换） -->
+        <div style="width:324px;height:112px;margin-left:6px;margin-top:10px;" onclick="toggleDone">
+          <image if="{{done}}" src="../../common/view-status-done.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+          <image else src="../../common/view-status-undo.png" style="position:absolute;left:0;top:0;width:324px;height:112px;"></image>
+        </div>
+
+        <!-- 优先级（2x2：高/中/低/置顶） -->
+        <text static style="font-size:24px;color:#8E8E93;margin-top:16px;margin-left:30px;">优先级</text>
+        <div style="width:336px;flex-direction:row;flex-wrap:wrap;margin-top:10px;">
+          <image if="{{priority===3}}" src="../../common/pri-high-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(3)"></image>
+          <image else src="../../common/pri-high.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(3)"></image>
+          <image if="{{priority===2}}" src="../../common/pri-mid-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(2)"></image>
+          <image else src="../../common/pri-mid.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(2)"></image>
+          <image if="{{priority===1}}" src="../../common/pri-low-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(1)"></image>
+          <image else src="../../common/pri-low.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setPriority(1)"></image>
+          <image if="{{pinned}}" src="../../common/pri-pin-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="togglePin"></image>
+          <image else src="../../common/pri-pin.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="togglePin"></image>
+        </div>
+
+        <!-- 截止时间（2x2：无/今天/明天/3天） -->
+        <text static style="font-size:24px;color:#8E8E93;margin-top:16px;margin-left:30px;">截止时间</text>
+        <div style="width:336px;flex-direction:row;flex-wrap:wrap;margin-top:10px;">
+          <image if="{{dueSel===0}}" src="../../common/due-none-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(0)"></image>
+          <image else src="../../common/due-none.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(0)"></image>
+          <image if="{{dueSel===1}}" src="../../common/due-today-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(1)"></image>
+          <image else src="../../common/due-today.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(1)"></image>
+          <image if="{{dueSel===2}}" src="../../common/due-tomorrow-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(2)"></image>
+          <image else src="../../common/due-tomorrow.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(2)"></image>
+          <image if="{{dueSel===3}}" src="../../common/due-3day-sel.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(3)"></image>
+          <image else src="../../common/due-3day.png" style="width:157px;height:112px;margin-left:6px;margin-right:4px;margin-bottom:12px;" onclick="setDue(3)"></image>
+        </div>
+
+        <!-- 操作按钮（切图） -->
+        <image static src="../../common/view-edit.png" style="width:324px;height:112px;margin-left:6px;margin-top:16px;" onclick="startEdit"></image>
+        <image static src="../../common/view-share.png" style="width:324px;height:112px;margin-left:6px;margin-top:10px;" onclick="shareItem"></image>
+        <image static src="../../common/view-del.png" style="width:324px;height:112px;margin-left:6px;margin-top:10px;" onclick="startConfirmDelete"></image>
+
+        <div style="height:12px;"></div>
+      </scroll>
+    </div>
+
+    <!-- 编辑模式：输入框在上（点击弹出键盘），输入法独立于页面底部 -->
+    <div if="{{editing}}" style="position:absolute;left:0;top:90px;width:336px;height:130px;">
+      <div style="position:absolute;left:6px;top:6px;width:324px;height:80px;border-radius:24px;background-color:#262626;flex-direction:row;align-items:center;padding-left:24px;padding-right:24px;" onclick="showKeyboard">
+        <text style="flex:1;font-size:30px;font-weight:700;color:#FFFFFF;lines:1;text-overflow:ellipsis;">{{editTitle || '请输入'}}_</text>
+      </div>
+    </div>
+
+    <!-- 输入法（页面底部，仅编辑模式渲染，避免每次进入卡顿） -->
+    <input-method
+      if="{{editing}}"
+      hide="{{keyboardHide}}"
+      screentype="rect"
+      maxlength="5"
+      @key-down="onKeyDown"
+      @delete="onDelete"
+      @complete="onComplete"
+    ></input-method>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    public: {
+      itemId: ''
+    },
+
+    private: {
+      timeStr: '',
+      title: '',
+      editTitle: '',
+      done: false,
+      priority: 2,
+      pinned: false,
+      dueSel: 0,
+      due: 0,
+      editing: false,
+      keyboardHide: true,
+      cloudId: null
+    },
+
+    onInit () {
+      utils.init(storage, prompt, fetch)
+    },
+
+    onShow () {
+      this.updateTime()
+      this.loadItem()
+    },
+
+    onDestroy () {
+      // 页面销毁时及时垃圾回收（含 InputMethod 组件的重页，避免内存堆积）
+      if (global && global.runGC) {
+        global.runGC()
+      }
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    loadItem () {
+      var that = this
+      utils.storageGet('todo_items').then(function (data) {
+        if (!data) {
+          router.back()
+          return
+        }
+        var found = false
+        try {
+          var items = JSON.parse(data)
+          for (var i = 0; i < items.length; i++) {
+            if (items[i].id === that.itemId) {
+              found = true
+              that.title = items[i].text || items[i].title || ''
+              that.editTitle = that.title
+              that.done = items[i].done || false
+              that.priority = items[i].priority || 2
+              that.pinned = items[i].is_pinned === 1
+              that.due = parseInt(items[i].due, 10) || 0
+              that.cloudId = items[i].cloudId || null
+              that.matchDueSel()
+              break
+            }
+          }
+        } catch (e) {
+          console.log('loadItem error: ' + e)
+        }
+        // 项已被删除（从 confirm 页返回）时直接回首页
+        if (!found) {
+          router.back()
+        }
+      })
+    },
+
+    // 已有截止时间匹配相对选项（今天/明天/3天/无）
+    matchDueSel () {
+      var that = this
+      if (!that.due) { that.dueSel = 0; return }
+      var now = new Date()
+      var endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime()
+      if (that.due <= endToday) { that.dueSel = 1; return }
+      if (that.due <= endToday + 86400000) { that.dueSel = 2; return }
+      if (that.due <= Date.now() + 3 * 86400000) { that.dueSel = 3; return }
+      that.dueSel = 0
+    },
+
+    setPriority (p) {
+      this.priority = p
+      // 点击立即保存本地 + 同步云端（不依赖对勾）
+      this.saveToCloud()
+    },
+
+    togglePin () {
+      this.pinned = !this.pinned
+      this.saveToCloud()
+    },
+
+    setDue (idx) {
+      this.dueSel = idx
+      var now = new Date()
+      if (idx === 1) { this.due = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime() }
+      else if (idx === 2) { this.due = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59).getTime() }
+      else if (idx === 3) { this.due = Date.now() + 3 * 86400000 }
+      else { this.due = 0 }
+      this.saveToCloud()
+    },
+
+    toggleDone () {
+      this.done = !this.done
+      // 在线：同步云端完成状态（token 从 storage 读）
+      var that = this
+      utils.storageGet('todo_token').then(function (token) {
+        utils.setToken(token || '')
+        utils.loadOffline().then(function (off) {
+          if (!off && token && token !== 'guest_token' && that.cloudId) {
+            utils.cloudToggleTodo(token, that.cloudId, that.done).catch(function () {})
+          }
+        })
+      })
+    },
+
+    startEdit () {
+      this.editing = true
+      this.keyboardHide = false
+    },
+
+    showKeyboard () {
+      this.keyboardHide = false
+    },
+
+    hideKeyboard () {
+      this.keyboardHide = true
+    },
+
+    onKeyDown (evt) {
+      console.log('keyDown: ' + JSON.stringify(evt))
+    },
+
+    onDelete () {
+      this.editTitle = this.editTitle.slice(0, -1)
+    },
+
+    onComplete (evt) {
+      if (this.editTitle.length < 30) {
+        this.editTitle += evt.detail.content
+      }
+    },
+
+    startConfirmDelete () {
+      router.push({ uri: 'pages/confirm', params: { itemId: this.itemId } })
+    },
+
+    shareItem () {
+      router.push({ uri: 'pages/qrcode', params: { itemId: this.itemId } })
+    },
+
+    saveEdit () {
+      var that = this
+      if (!that.editTitle) {
+        utils.toast('内容不能为空')
+        return
+      }
+      utils.storageGet('todo_items').then(function (data) {
+        var items = []
+        if (data) {
+          try { items = JSON.parse(data) } catch (e) { items = [] }
+        }
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].id === that.itemId) {
+            items[i].text = that.editTitle
+            items[i].done = that.done
+            items[i].priority = that.priority
+            break
+          }
+        }
+        utils.storageSet('todo_items', JSON.stringify(items))
+        that.title = that.editTitle
+        that.editing = false
+        that.keyboardHide = true
+        utils.toast('已保存')
+      })
+    },
+
+    // 保存本地 + 同步云端（不返回；token 从 storage 读）
+    saveToCloud () {
+      var that = this
+      return utils.storageGet('todo_items').then(function (data) {
+        var items = []
+        if (data) {
+          try { items = JSON.parse(data) } catch (e) { items = [] }
+        }
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].id === that.itemId) {
+            items[i].text = that.editTitle || that.title
+            items[i].done = that.done
+            items[i].priority = that.priority
+            items[i].is_pinned = that.pinned ? 1 : 0
+            if (that.due) { items[i].due = that.due }
+            else { delete items[i].due }
+            break
+          }
+        }
+        return utils.storageSet('todo_items', JSON.stringify(items)).then(function () {
+          return utils.storageGet('todo_token').then(function (token) {
+            utils.setToken(token || '')
+            return utils.loadOffline().then(function (off) {
+              if (!off && token && token !== 'guest_token' && that.cloudId) {
+                return utils.cloudUpdateTodo(token, that.cloudId, that.editTitle || that.title, that.priority, that.due || 0, that.pinned ? 1 : 0).then(function (res) {
+                  console.log('cloud update res:', JSON.stringify(res), 'priority:', that.priority)
+                  return res
+                }).catch(function (e) {
+                  console.log('cloud update fail:', e && e.message)
+                  return null
+                })
+              }
+              return null
+            })
+          })
+        })
+      })
+    },
+
+    saveState () {
+      var that = this
+      that.saveToCloud().then(function () {
+        utils.toast('已保存')
+        router.back()
+      })
+    },
+
+    saveAndBack () {
+      if (this.editing) {
+        this.saveEdit()
+      } else {
+        this.saveState()
+      }
+    },
+
+    goBack () {
+      if (this.editing) {
+        this.editing = false
+        this.keyboardHide = true
+        this.editTitle = this.title
+      } else {
+        router.back()
+      }
+    }
+  }
+</script>

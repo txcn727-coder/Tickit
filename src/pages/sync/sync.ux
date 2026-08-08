@@ -1,0 +1,173 @@
+<template>
+  <div style="flex-direction:column;width:336px;height:480px;background-color:#000000;">
+
+    <!-- 背景（按状态切换：背景图自带标题/中央图标/状态文字） -->
+    <image if="{{status==='syncing'}}" src="../../common/sync-bg.png" style="position:absolute;left:0;top:0;width:336px;height:480px;"></image>
+    <image elif="{{status==='success'}}" src="../../common/sync-success-bg.png" style="position:absolute;left:0;top:0;width:336px;height:480px;"></image>
+    <image else src="../../common/sync-fail-bg.png" style="position:absolute;left:0;top:0;width:336px;height:480px;"></image>
+
+    <!-- 顶部：返回 + 时间（标题由背景图自带） -->
+    <div static style="position:absolute;left:6px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#262626;border-width:3px;border-color:rgba(255,255,255,0.06);justify-content:center;align-items:center;" onclick="goBack">
+      <image static src="../../common/icon-back.png" style="width:16px;height:27px;"></image>
+    </div>
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+
+    <!-- 说明文字（覆盖层，按状态动态；成功背景自带"所有数据已同步"不重复显示） -->
+    <text if="{{status==='syncing' || status==='fail' || status==='offline' || status==='nobind'}}" style="position:absolute;left:20px;top:316px;width:296px;text-align:center;font-size:20px;color:{{descColor}};lines:2;line-height:28px;">{{descText}}</text>
+
+    <!-- 同步中：取消 -->
+    <div if="{{status==='syncing'}}" style="position:absolute;left:18px;top:392px;width:300px;height:80px;" onclick="goBack">
+      <image src="../../common/btn-cancel.png" style="width:300px;height:80px;"></image>
+    </div>
+    <!-- 成功：完成 -->
+    <div if="{{status==='success'}}" style="position:absolute;left:18px;top:392px;width:300px;height:80px;" onclick="goBack">
+      <image src="../../common/btn-done.png" style="width:300px;height:80px;"></image>
+    </div>
+    <!-- 失败/离线/未绑定：离线模式 + 去绑定 -->
+    <div if="{{status==='fail' || status==='offline' || status==='nobind'}}" style="position:absolute;left:18px;top:392px;width:150px;height:80px;" onclick="switchOffline">
+      <image src="../../common/btn-offline.png" style="width:150px;height:80px;"></image>
+    </div>
+    <div if="{{status==='fail' || status==='offline' || status==='nobind'}}" style="position:absolute;left:168px;top:392px;width:150px;height:80px;" onclick="goBind">
+      <image src="../../common/btn-bind.png" style="width:150px;height:80px;"></image>
+    </div>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    private: {
+      timeStr: '',
+      status: 'waiting',
+      descText: '',
+      descColor: '#AAAAAA'
+    },
+
+    onShow () {
+      var that = this
+      that.updateTime()
+      utils.init(storage, prompt, fetch)
+      utils.loadOffline().then(function (off) {
+        if (off) {
+          that.showOffline()
+          return
+        }
+        that.checkBindAndSync()
+      })
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    // 已退出/未绑定时不执行同步，提示去绑定
+    checkBindAndSync () {
+      var that = this
+      utils.storageGet('todo_token').then(function (token) {
+        if (!token || token === 'guest_token') {
+          that.showNoBind()
+          return
+        }
+        that.startSync()
+      })
+    },
+
+    startSync () {
+      this.status = 'syncing'
+      this.descText = '正在拉取云数据'
+      this.descColor = '#AAAAAA'
+      this.pullAndMerge()
+    },
+
+    pullAndMerge () {
+      var that = this
+      utils.storageGet('todo_token').then(function (token) {
+        if (!token || token === 'guest_token') {
+          that.showNoBind()
+          return
+        }
+        utils.setToken(token)
+        console.log('sync token:', (token || '').substring(0, 10))
+        utils.syncPull().then(function (cloudTodos) {
+          var isArr = Object.prototype.toString.call(cloudTodos) === '[object Array]'
+          console.log('cloud todos:', isArr ? '数组长度=' + cloudTodos.length : '非数组', isArr ? '' : JSON.stringify(cloudTodos))
+          if (!isArr) {
+            // 401/错误响应（如 token 已被撤销）→ 提示失效
+            that.showFail(cloudTodos && cloudTodos.error ? '云端账号已失效，请重新绑定' : '无法连接服务器')
+            return
+          }
+          that.mergeAndSave(cloudTodos)
+        }).catch(function (err) {
+          console.log('pull fail:', err && err.message)
+          that.showFail('无法连接服务器')
+        })
+      })
+    },
+
+    mergeAndSave (cloudItems) {
+      var that = this
+      utils.storageGet('todo_items').then(function (data) {
+        var localItems = []
+        if (data) {
+          try { localItems = JSON.parse(data) } catch (e) { localItems = [] }
+        }
+        var merged = utils.mergeCloudItems(localItems, cloudItems)
+        console.log('merged count:', merged.length, 'cloud count:', (cloudItems || []).length)
+        utils.storageSet('todo_items', JSON.stringify(merged)).then(function (ok) {
+          console.log('storageSet done, ok:', ok)
+          that.push(merged)
+        })
+      })
+    },
+
+    push (items) {
+      var that = this
+      utils.syncPush(items).then(function () {
+        that.status = 'success'
+        that.descText = ''
+      }).catch(function (err) {
+        console.log('push fail:', err)
+        that.showFail('推送失败，数据已保留在本地')
+      })
+    },
+
+    showFail (msg) {
+      this.status = 'fail'
+      this.descText = msg || '无法连接服务器，请重试'
+      this.descColor = '#999999'
+    },
+
+    showOffline () {
+      this.status = 'offline'
+      this.descText = '当前处于离线模式，可前往设置切换在线模式'
+      this.descColor = '#999999'
+    },
+
+    showNoBind () {
+      this.status = 'nobind'
+      this.descText = '请到「设置 → 云端账号」绑定后重试'
+      this.descColor = '#999999'
+    },
+
+    switchOffline () {
+      utils.setOffline(true)
+      utils.toast('已切换离线模式')
+      this.showOffline()
+    },
+
+    goBind () {
+      router.push({ uri: 'pages/token' })
+    },
+
+    goBack () { router.back() }
+  }
+</script>

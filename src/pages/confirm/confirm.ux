@@ -1,0 +1,158 @@
+<template>
+  <div style="width:336px;height:480px;background-color:#000000;">
+
+    <!-- 删除页背景（sanc.png：自带标题/卡片/文字，无顶部按钮） -->
+    <image static src="../../common/confirm-bg.png" style="position:absolute;left:0;top:0;width:336px;height:480px;"></image>
+
+    <!-- 时间 -->
+    <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
+
+    <!-- 左返回按钮（sanc 无自带按钮，需可见按钮） -->
+    <div static style="position:absolute;left:6px;top:6px;width:72px;height:72px;border-radius:36px;background-color:#262626;border-width:3px;border-color:rgba(255,255,255,0.06);justify-content:center;align-items:center;" onclick="goBack">
+      <image src="../../common/icon-back.png" style="width:16px;height:27px;"></image>
+    </div>
+    <!-- 右上角：容器 16.png 红垃圾桶按钮 -->
+    <image static src="../../common/icon-del-top.png" style="position:absolute;left:258px;top:6px;width:72px;height:72px;" onclick="doDelete"></image>
+
+  </div>
+</template>
+
+<script>
+  import router from '@system.router'
+  import storage from '@system.storage'
+  import prompt from '@system.prompt'
+  import fetch from '@system.fetch'
+  import utils from '../../common/utils'
+
+  export default {
+    public: {
+      itemId: '',
+      type: 'todo'
+    },
+
+    private: {
+      timeStr: ''
+    },
+
+    onInit () {
+      utils.init(storage, prompt, fetch)
+    },
+
+    onShow () {
+      this.updateTime()
+    },
+
+    updateTime () {
+      var now = new Date()
+      var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
+      var m = now.getMinutes().toString(); if (m.length < 2) m = '0' + m
+      this.timeStr = h + ':' + m
+    },
+
+    doDelete () {
+      var that = this
+      if (that.type === 'note') {
+        that.doDeleteNote()
+      } else {
+        that.doDeleteTodo()
+      }
+    },
+
+    // 便签删除：本地删除 + 作废待上传记录 + cloudId 记入待删列表（notes 页 onShow 执行云端删除）
+    doDeleteNote () {
+      var that = this
+      utils.storageGet('todo_notes').then(function (data) {
+        var list = []
+        var cloudId = null
+        if (data) {
+          try { list = JSON.parse(data) } catch (e) { list = [] }
+        }
+        var newList = []
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].id === that.itemId) {
+            cloudId = list[i].cloudId || null
+            continue
+          }
+          newList.push(list[i])
+        }
+        var afterSave = function () {
+          utils.toast('已删除')
+          router.back()
+        }
+        // 作废待上传记录：本地新建尚未上传的便签被删除时，防止 onShow 的 pending add 把它重新传到云端（删不掉的根因）
+        var voidAdd = function (next) {
+          utils.storageGet('todo_notes_pending_add').then(function (pd) {
+            var pending = []
+            if (pd) {
+              try { pending = JSON.parse(pd) } catch (e) { pending = [] }
+            }
+            var remaining = []
+            for (var j = 0; j < pending.length; j++) {
+              if (pending[j] && pending[j].localId !== that.itemId) { remaining.push(pending[j]) }
+            }
+            utils.storageSet('todo_notes_pending_add', JSON.stringify(remaining)).then(next)
+          })
+        }
+        var doCloudDelete = function () {
+          if (cloudId) {
+            utils.storageGet('todo_pending_delete_notes').then(function (pd) {
+              var pending = []
+              if (pd) {
+                try { pending = JSON.parse(pd) } catch (e) { pending = [] }
+              }
+              if (pending.indexOf(cloudId) < 0) { pending.push(cloudId) }
+              utils.storageSet('todo_pending_delete_notes', JSON.stringify(pending)).then(function () {
+                utils.storageSet('todo_notes', JSON.stringify(newList)).then(afterSave)
+              })
+            })
+          } else {
+            utils.storageSet('todo_notes', JSON.stringify(newList)).then(afterSave)
+          }
+        }
+        voidAdd(doCloudDelete)
+      })
+    },
+
+    // 清单删除：本地删除 + cloudId 记入待删列表（home 页 onShow 执行云端删除）
+    doDeleteTodo () {
+      var that = this
+      utils.storageGet('todo_items').then(function (data) {
+        var items = []
+        var cloudId = null
+        if (data) {
+          try { items = JSON.parse(data) } catch (e) { items = [] }
+        }
+        var newItems = []
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].id === that.itemId) {
+            cloudId = items[i].cloudId || null
+            continue
+          }
+          newItems.push(items[i])
+        }
+        // 云端删除由 home.onShow 自动处理（页面销毁会中断这里的网络链）
+        // 先把 cloudId 记入待删列表，本地删除写入完成后再返回
+        var afterSave = function () {
+          utils.toast('已删除')
+          router.back()
+        }
+        if (cloudId) {
+          utils.storageGet('todo_pending_delete').then(function (pd) {
+            var pending = []
+            if (pd) {
+              try { pending = JSON.parse(pd) } catch (e) { pending = [] }
+            }
+            if (pending.indexOf(cloudId) < 0) { pending.push(cloudId) }
+            utils.storageSet('todo_pending_delete', JSON.stringify(pending)).then(function () {
+              utils.storageSet('todo_items', JSON.stringify(newItems)).then(afterSave)
+            })
+          })
+        } else {
+          utils.storageSet('todo_items', JSON.stringify(newItems)).then(afterSave)
+        }
+      })
+    },
+
+    goBack () { router.back() }
+  }
+</script>
