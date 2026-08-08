@@ -1,0 +1,88 @@
+{
+  "package": "com.txcnstudio.todo",
+  "name": "TickIt",
+  "versionName": "2.5.1",
+  "versionCode": 4,
+  "minPlatformVersion": 1001,
+  "minAPILevel": 2,
+  "icon": "/common/logo.png",
+  "deviceTypeList": [
+    "watch"
+  ],
+  "features": [
+    {
+      "name": "system.router"
+    },
+    {
+      "name": "system.storage"
+    },
+    {
+      "name": "system.prompt"
+    },
+    {
+      "name": "system.vibrator"
+    },
+    {
+      "name": "system.device"
+    },
+    {
+      "name": "system.fetch"
+    }
+  ],
+  "config": {
+    "logLevel": "log",
+    "designWidth": 336
+  },
+  "router": {
+    "entry": "pages/home",
+    "pages": {
+      "pages/home": {
+        "component": "home"
+      },
+      "pages/list": {
+        "component": "list"
+      },
+      "pages/numpad": {
+        "component": "numpad"
+      },
+      "pages/viewer": {
+        "component": "viewer"
+      },
+      "pages/confirm": {
+        "component": "confirm"
+      },
+      "pages/qrcode": {
+        "component": "qrcode"
+      },
+      "pages/sync": {
+        "component": "sync"
+      },
+      "pages/token": {
+        "component": "token"
+      },
+      "pages/logout": {
+        "component": "logout"
+      },
+      "pages/about": {
+        "component": "about"
+      },
+      "pages/notes": {
+        "component": "notes"
+      },
+      "pages/notecreate": {
+        "component": "notecreate"
+      },
+      "pages/noteedit": {
+        "component": "noteedit"
+      }
+    }
+  },
+  "packageInfo": {
+    "toolkit": "2.0.5",
+    "timeStamp": "2026-08-06T05:45:56.324Z",
+    "node": "v24.16.0",
+    "platform": "win32",
+    "arch": "x64",
+    "component": true
+  }
+}
