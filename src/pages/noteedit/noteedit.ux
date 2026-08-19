@@ -22,15 +22,6 @@
       <!-- 点击空白收起输入法 -->
       <div if="{{!hide}}" style="position:absolute;left:0;top:0;width:336px;height:220px;" onclick="hideKeyboard"></div>
 
-      <input-method
-        if="{{editing}}"
-        hide="{{hide}}"
-        screentype="rect"
-        maxlength="10"
-        @key-down="onKeyDown"
-        @delete="onDelete"
-        @complete="onComplete"
-      ></input-method>
     </div>
 
     <!-- ═══ 详情模式（默认态，首帧即详情不闪 ✓）：右上 ✓ 进编辑 + 内容卡 + 三按钮 ═══ -->
@@ -57,6 +48,16 @@
         <div style="height:12px;"></div>
       </scroll>
     </div>
+
+    <!-- InputMethod 始终在 DOM 中（避免 Vela 5.0 条件渲染 crash） -->
+    <input-method
+      hide="{{!editing || hide}}"
+      screentype="rect"
+      maxlength="10"
+      @key-down="onKeyDown"
+      @delete="onDelete"
+      @complete="onComplete"
+    ></input-method>
 
   </div>
 </template>

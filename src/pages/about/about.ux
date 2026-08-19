@@ -8,10 +8,10 @@
     <text style="position:absolute;left:105px;top:10px;width:126px;text-align:center;font-size:26px;color:#999999;">{{timeStr}}</text>
     <text static style="position:absolute;left:100px;top:42px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">关于</text>
 
-    <!-- 中央大卡（324x194）：TickIt + V2.5.1 + 右下角应用图标 -->
+    <!-- 中央大卡（324x194）：TickIt + V2.5.2 + 右下角应用图标 -->
     <div style="position:absolute;left:6px;top:86px;width:324px;height:194px;border-radius:28px;background-color:#262626;">
       <text static style="position:absolute;left:22px;top:24px;font-size:34px;font-weight:700;color:#FFFFFF;">TickIt</text>
-      <text static style="position:absolute;left:22px;top:80px;font-size:22px;color:#888888;">V2.5.1</text>
+      <text static style="position:absolute;left:22px;top:80px;font-size:22px;color:#888888;">V2.5.2</text>
       <image static src="../../common/logo.png" style="position:absolute;left:246px;top:98px;width:64px;height:64px;"></image>
     </div>
 
@@ -33,6 +33,12 @@
 
     onShow () {
       this.updateTime()
+    },
+
+    onDestroy () {
+      if (global && global.runGC) {
+        global.runGC()
+      }
     },
 
     updateTime () {

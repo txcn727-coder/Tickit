@@ -12,7 +12,7 @@
     <text static style="position:absolute;left:100px;top:40px;width:136px;text-align:center;font-size:32px;font-weight:700;color:#FFFFFF;">创建清单</text>
 
     <!-- 内容区（可滚动：名称 + 优先级 2x2 + 截止时间 2x2，卡片与设计稿同尺寸占满全宽） -->
-    <scroll scroll-y="true" style="position:absolute;left:0;top:85px;width:336px;height:395px;flex-direction:column;">
+    <scroll scroll-y="true" style="position:absolute;left:0;top:85px;width:336px;height:{{hide ? 395 : 140}}px;flex-direction:column;">
 
       <!-- 名称输入（点击弹出输入法，设计稿 324x112 全宽大圆角 ~30） -->
       <div style="width:324px;height:112px;border-radius:30px;background-color:#262626;flex-direction:row;align-items:center;padding-left:26px;padding-right:20px;margin-left:6px;" onclick="showKeyboard">

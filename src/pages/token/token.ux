@@ -85,6 +85,12 @@
       })
     },
 
+    onDestroy () {
+      if (global && global.runGC) {
+        global.runGC()
+      }
+    },
+
     updateTime () {
       var now = new Date()
       var h = now.getHours().toString(); if (h.length < 2) h = '0' + h

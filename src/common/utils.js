@@ -211,6 +211,7 @@ function solveChallenge () {
 // 返回 Promise，resolve(res.data)，res.data 为后端 JSON 响应体
 function request (options) {
   function attempt (resolve, reject) {
+    if (!_fetch) { reject(new Error('网络模块不可用')); return }
     var url = API_BASE
     var parts = []
     if (options.action) {

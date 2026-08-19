@@ -91,18 +91,26 @@
             var done = function () { resolveAll() }
 
             // —— 1. 上传本地新建（无 cloudId）的便签，成功回写 cloudId ——
-            // ⚠️ 上传前校验本地存在性：pending 残留 + 本地已删 → 跳过（否则已删便签被重新上传到云端"复活"）
+            // ⚠️ 上传前校验本地存在性 + voided 列表：pending 残留 + 本地已删 → 跳过（否则已删便签被重新上传到云端"复活"）
             utils.storageGet('todo_notes_pending_add').then(function (pd) {
               var pending = []
               if (pd) {
                 try { pending = JSON.parse(pd) } catch (e) { pending = [] }
               }
               if (!pending.length) { doUpdateChain(); return }
+              // 读取已作废 ID 列表
+              utils.storageGet('todo_notes_voided').then(function (vd) {
+              var voided = []
+              if (vd) {
+                try { voided = JSON.parse(vd) } catch (e) { voided = [] }
+              }
               var chain = Promise.resolve()
               var remaining = []
               for (var i = 0; i < pending.length; i++) {
                 (function (p) {
                   chain = chain.then(function () {
+                    // 已作废（用户在同步过程中删除了该便签）→ 跳过上传
+                    if (voided.indexOf(p.localId) >= 0) { return null }
                     return utils.storageGet('todo_notes').then(function (data) {
                       var exists = false
                       if (data) {
@@ -136,8 +144,12 @@
                 })(pending[i])
               }
               chain.then(function () {
-                utils.storageSet('todo_notes_pending_add', JSON.stringify(remaining)).then(doUpdateChain)
+                utils.storageSet('todo_notes_pending_add', JSON.stringify(remaining)).then(function () {
+                  // 上传链完成，清空已作废列表
+                  utils.storageSet('todo_notes_voided', '[]').then(doUpdateChain)
+                })
               })
+              }) // end voided storageGet
             })
 
             // —— 2. 更新已绑定云端便签 ——
@@ -255,13 +267,25 @@
         for (var m = 0; m < result.length; m++) {
           if (result[m] && String(result[m].cloudId) === k) { found = true; break }
         }
+        // 兜底：内容+时间匹配（cloudId 回写延迟时防重复）
         if (!found) {
           var c2 = cloudMap[k]
+          var cTs = c2.created_ts ? c2.created_ts * 1000 : 0
+          for (var n = 0; n < result.length; n++) {
+            if (!result[n].cloudId && result[n].content === c2.content && cTs && result[n].createdAt && Math.abs(result[n].createdAt - cTs) < 10000) {
+              result[n].cloudId = c2.id
+              found = true
+              break
+            }
+          }
+        }
+        if (!found) {
+          var c3 = cloudMap[k]
           result.push({
-            id: String(c2.id),
-            cloudId: c2.id,
-            content: c2.content || '',
-            createdAt: c2.created_ts ? c2.created_ts * 1000 : Date.now()
+            id: String(c3.id),
+            cloudId: c3.id,
+            content: c3.content || '',
+            createdAt: c3.created_ts ? c3.created_ts * 1000 : Date.now()
           })
         }
       }
@@ -285,15 +309,22 @@
             utils.cloudGetNotes(token).then(function (cloud) {
               var isArr = Object.prototype.toString.call(cloud) === '[object Array]'
               if (!isArr) { return }
-              // 读取待删云端 id 列表，合并时跳过（云端删失败也不拉回）
-              utils.storageGet('todo_pending_delete_notes').then(function (pd) {
-                var pendingDel = []
-                if (pd) {
-                  try { pendingDel = JSON.parse(pd) } catch (e) { pendingDel = [] }
+              // 合并前重新读取本地（syncPendingNotes 可能已回写 cloudId）
+              utils.storageGet('todo_notes').then(function (data2) {
+                var local2 = []
+                if (data2) {
+                  try { local2 = JSON.parse(data2) } catch (e) { local2 = [] }
                 }
-                var merged = that.mergeNotes(local, cloud, pendingDel)
-                utils.storageSet('todo_notes', JSON.stringify(merged)).then(function () {
-                  that.renderList(merged)
+                // 读取待删云端 id 列表，合并时跳过（云端删失败也不拉回）
+                utils.storageGet('todo_pending_delete_notes').then(function (pd) {
+                  var pendingDel = []
+                  if (pd) {
+                    try { pendingDel = JSON.parse(pd) } catch (e) { pendingDel = [] }
+                  }
+                  var merged = that.mergeNotes(local2, cloud, pendingDel)
+                  utils.storageSet('todo_notes', JSON.stringify(merged)).then(function () {
+                    that.renderList(merged)
+                  })
                 })
               })
             }).catch(function (err) {

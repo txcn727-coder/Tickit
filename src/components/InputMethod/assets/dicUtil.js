@@ -1,13 +1,18 @@
-import { dict } from './dic.js'
+var dict = null
 
 let SimpleInputMethod = {
-    dict: {}
+    dict: {},
+    _inited: false
 }
 
 SimpleInputMethod.initDict = function() {
+    if (this._inited) return
+    if (!dict) {
+        try { dict = require('./dic.js').dict } catch (e) { dict = {} }
+    }
     this.dict.py2hz = dict;
     this.dict.py2hz2 = {};
-    this.dict.py2hz2['i'] = 'i'; // i比较特殊，没有符合的汉字，所以特殊处理
+    this.dict.py2hz2['i'] = 'i';
 
     for (let key in this.dict.py2hz) {
         let ch = key[0];
@@ -15,13 +20,16 @@ SimpleInputMethod.initDict = function() {
             this.dict.py2hz2[ch] = this.dict.py2hz[key];
         }
     }
+    this._inited = true
 };
 
 SimpleInputMethod.getSingleHanzi = function(pinyin){
+    if (!this._inited) this.initDict()
     return this.dict.py2hz2[pinyin] || this.dict.py2hz[pinyin] || '';
 }
 
 SimpleInputMethod.getHanzi = function(pinyin) {
+    if (!this._inited) this.initDict()
     let result = this.getSingleHanzi(pinyin);
     if (result) return [result.split(''), pinyin];
 
@@ -34,9 +42,7 @@ SimpleInputMethod.getHanzi = function(pinyin) {
         if (rs) return [rs.split(''), str];
     }
 
-    return [[], '']; // 理论上一般不会出现这种情况
+    return [[], ''];
 };
 
-SimpleInputMethod.initDict();
-
-export { SimpleInputMethod } //换成export default SimpleInputMethod;不能用
+export { SimpleInputMethod }

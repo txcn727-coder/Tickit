@@ -42,6 +42,12 @@
       this.updateTime()
     },
 
+    onDestroy () {
+      if (global && global.runGC) {
+        global.runGC()
+      }
+    },
+
     updateTime () {
       var now = new Date()
       var h = now.getHours().toString(); if (h.length < 2) h = '0' + h
@@ -90,7 +96,17 @@
             for (var j = 0; j < pending.length; j++) {
               if (pending[j] && pending[j].localId !== that.itemId) { remaining.push(pending[j]) }
             }
-            utils.storageSet('todo_notes_pending_add', JSON.stringify(remaining)).then(next)
+            // 记录已作废 ID（syncPendingNotes 上传前检查，防快照中的上传复活已删便签）
+            utils.storageGet('todo_notes_voided').then(function (vd) {
+              var voided = []
+              if (vd) {
+                try { voided = JSON.parse(vd) } catch (e) { voided = [] }
+              }
+              if (voided.indexOf(that.itemId) < 0) { voided.push(that.itemId) }
+              utils.storageSet('todo_notes_voided', JSON.stringify(voided)).then(function () {
+                utils.storageSet('todo_notes_pending_add', JSON.stringify(remaining)).then(next)
+              })
+            })
           })
         }
         var doCloudDelete = function () {

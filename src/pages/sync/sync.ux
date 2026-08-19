@@ -69,6 +69,12 @@
       this.timeStr = h + ':' + m
     },
 
+    onDestroy () {
+      if (global && global.runGC) {
+        global.runGC()
+      }
+    },
+
     // 已退出/未绑定时不执行同步，提示去绑定
     checkBindAndSync () {
       var that = this
